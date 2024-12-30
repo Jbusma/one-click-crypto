@@ -1,0 +1,25 @@
+{
+  "name": "oneclick_paymaster",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "restart-hardhat": "lsof -ti tcp:8545 | xargs kill -9 && npx hardhat node",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "ethers": "^6.13.4",
+    "hardhat": "^2.22.16",
+    "hardhat-deploy": "^0.14.0"
+  },
+  "dependencies": {
+    "@account-abstraction/contracts": "^0.6.0",
+    "@openzeppelin/contracts": "^4.2.0",
+    "directory-tree": "^3.5.2"
+  }
+}
