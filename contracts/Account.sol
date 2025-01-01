@@ -13,6 +13,9 @@ import "@account-abstraction/contracts/core/EntryPoint.sol";
 // Importing OpenZeppelin's ECDSA library for signature operations
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
+// Importing OpenZeppelin's ERC20 interface
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 /**
  * @title Account
  * @dev Implements the IAccount interface for Account Abstraction as per EIP-4337.
@@ -22,6 +25,20 @@ contract Account is Ownable, IAccount {
 
     EntryPoint public immutable entryPoint;
     uint256 public nonce;
+
+    // Shipping info structure
+    struct ShippingInfo {
+        string name;
+        string streetAddress;
+        string city;
+        string country;
+        string postalCode;
+        string email;
+    }
+
+    ShippingInfo public shippingInfo;
+    
+    event ShippingInfoUpdated(address indexed account);
 
     /**
      * @dev Constructor sets the fixed EntryPoint address.
@@ -83,19 +100,25 @@ contract Account is Ownable, IAccount {
         (bool success, ) = dest.call{value: value}(data);
         require(success, "Call failed");
     }
-}
 
-contract AccountFactory {
-    event AccountCreated(address indexed account);
-    address payable public entryPoint;  
-
-    constructor(address payable _entrypoint_address) {
-        entryPoint = _entrypoint_address;
-    }
-
-    function createAccount() external returns (address) {
-        Account account = new Account(entryPoint);
-        emit AccountCreated(address(account));
-        return address(account);
+    // Update shipping info
+    function setShippingInfo(
+        string memory _name,
+        string memory _streetAddress,
+        string memory _city,
+        string memory _country,
+        string memory _postalCode,
+        string memory _email
+    ) external onlyOwner {
+        shippingInfo = ShippingInfo({
+            name: _name,
+            streetAddress: _streetAddress,
+            city: _city,
+            country: _country,
+            postalCode: _postalCode,
+            email: _email
+        });
+        
+        emit ShippingInfoUpdated(address(this));
     }
 }

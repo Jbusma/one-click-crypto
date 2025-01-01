@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 // Solidity
 // File: MyToken.sol
 pragma solidity ^0.8.0;
@@ -9,4 +8,4 @@ contract OneClickCheckoutToken is ERC20 {
     constructor(uint256 initialSupply) ERC20("OneClickCheckoutToken", "OCCT") {
         _mint(msg.sender, initialSupply);
     }
-} 
+}
