@@ -1,0 +1,43 @@
+// Project: One Click Checkout Crypto
+// Purpose: Simplify crypto payments using Account Abstraction (EIP-4337)
+
+ARCHITECTURE:
+- Smart contracts handle only essential on-chain logic (Account implementation)
+- ProxyFactory contract handles permissionless account creation via EIP-1167 proxies
+- Gas costs for proxy deployment sponsored through paymaster
+- Keep gas costs minimal for both users and us
+
+COMPONENTS:
+1. Account.sol - EIP-4337 compatible smart contract wallet
+   - Handles user operations
+   - Manages shipping info
+   - Integrates with EntryPoint
+
+2. OneClickToken.sol - ERC20 token for payments
+   - Simple implementation
+   - Used for payment flows
+
+3. OneClickPaymaster.sol - Handles gas sponsorship
+   - Supports multiple tokens
+   - Exchange rate management
+
+4. ProxyFactory.sol - Handles account creation
+   - Deploys minimal proxies (EIP-1167)
+   - Permissionless deployment
+   - Gas sponsored through paymaster
+
+DEPLOYMENT FLOW:
+1. Deploy EntryPoint (or use existing)
+2. Deploy Account implementation
+3. Deploy OneClickToken
+4. Deploy OneClickPaymaster
+5. Deploy ProxyFactory
+
+PRINCIPLES:
+- All solidity code needs to be audited as it is added to the codebase
+- Optimize for gas efficiency
+
+DEVELOPMENT:
+- Always make sure to use the latest best practices, no deprecated ethers.js calls
+- Keep tests isolated but efficient
+- Every case should have a unit test and integration test

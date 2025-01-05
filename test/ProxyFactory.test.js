@@ -27,11 +27,7 @@ describe("ProxyFactory", function () {
     });
 
     it("calculates deterministic address", async function () {
-        const GasTester = await ethers.getContractFactory("GasTester");
-        const tester = await GasTester.deploy(await proxyFactory.getAddress());
-        await tester.waitForDeployment();
-        
-        const proxyAddress = await tester.testGetAddress(await implementation.getAddress(), owner.address);
+        const proxyAddress = await proxyFactory.getAddress(await implementation.getAddress(), owner.address);
         expect(proxyAddress).to.be.properAddress;
         console.log("Calculated proxy address:", proxyAddress);
     });

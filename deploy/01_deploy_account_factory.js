@@ -13,3 +13,6 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     log: true,
   });
 };
+
+module.exports.tags = ['AccountFactory', 'core'];
+module.exports.dependencies = ['EntryPoint'];
