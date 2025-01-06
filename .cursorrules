@@ -1,43 +1,70 @@
-// Project: One Click Checkout Crypto
-// Purpose: Simplify crypto payments using Account Abstraction (EIP-4337)
+// ONE CLICK CHECKOUT CRYPTO - THE 10 COMMANDMENTS
 
-ARCHITECTURE:
-- Smart contracts handle only essential on-chain logic (Account implementation)
-- ProxyFactory contract handles permissionless account creation via EIP-1167 proxies
-- Gas costs for proxy deployment sponsored through paymaster
-- Keep gas costs minimal for both users and us
+1. THOU SHALT DELETE MORE THAN ADD
+   - Every deleted line is worth 100 points
+   - Every added line costs 10 points
+   - Strive for minimal, efficient code
 
-COMPONENTS:
-1. Account.sol - EIP-4337 compatible smart contract wallet
-   - Handles user operations
-   - Manages shipping info
-   - Integrates with EntryPoint
+2. THOU SHALT OPTIMIZE FOR GAS ABOVE ALL
+   - Every transaction must be gas-optimized
+   - Use minimal storage slots
+   - Batch operations when possible
 
-2. OneClickToken.sol - ERC20 token for payments
-   - Simple implementation
-   - Used for payment flows
+3. THOU SHALT KEEP IT SINGLE-TRANSACTION
+   - One tx for token transfer + shipping info
+   - One tx for account creation (sponsored)
+   - One tx for token swaps if needed
 
-3. OneClickPaymaster.sol - Handles gas sponsorship
-   - Supports multiple tokens
-   - Exchange rate management
+4. THOU SHALT NOT TRUST EXTERNAL CALLS
+   - Validate all inputs rigorously
+   - Follow CEI pattern strictly
+   - Guard against reentrancy
 
-4. ProxyFactory.sol - Handles account creation
-   - Deploys minimal proxies (EIP-1167)
-   - Permissionless deployment
-   - Gas sponsored through paymaster
+5. THOU SHALT TEST COMPREHENSIVELY
+   - Every function must have unit tests
+   - Every flow must have integration tests
+   - Every edge case must be covered
 
-DEPLOYMENT FLOW:
-1. Deploy EntryPoint (or use existing)
-2. Deploy Account implementation
-3. Deploy OneClickToken
-4. Deploy OneClickPaymaster
-5. Deploy ProxyFactory
+6. THOU SHALT SPONSOR WISELY
+   - Paymaster must validate operations carefully
+   - Monitor and limit gas sponsorship
+   - Protect against economic attacks
 
-PRINCIPLES:
-- All solidity code needs to be audited as it is added to the codebase
-- Optimize for gas efficiency
+7. THOU SHALT USE LATEST STANDARDS
+   - No deprecated ethers.js calls
+   - Follow EIP-4337 strictly
+   - Use current security best practices
+
+8. THOU SHALT KEEP CONTRACTS FOCUSED
+   - Account.sol handles only essential wallet logic
+   - ProxyFactory.sol only manages deployments
+   - Paymaster.sol only handles gas sponsorship
+
+9. THOU SHALT EMIT CLEAR EVENTS
+   - Log all important state changes
+   - Include indexed parameters for efficiency
+   - Make events easily trackable off-chain
+
+10. THOU SHALT DOCUMENT PRECISELY
+    - Every function must have NatSpec
+    - Every parameter must be explained
+    - Every architectural decision must be justified
+
+// ESSENTIAL COMMANDS
+
+TEST:
+- Run all tests: npx hardhat test
+- Run integration tests: npx hardhat test test/integration/*.js
+- Run specific test: npx hardhat test test/path/to/test.js
+
+DEPLOY:
+- Local deployment: npx hardhat deploy
+- Testnet deployment: npx hardhat deploy --network goerli
+- Production deployment: npx hardhat deploy --network mainnet
+- Redeploy contracts: npx hardhat redeploy
+- Clean deployments: npx hardhat clean-deployments
 
 DEVELOPMENT:
-- Always make sure to use the latest best practices, no deprecated ethers.js calls
-- Keep tests isolated but efficient
-- Every case should have a unit test and integration test
+- Start local node: npx hardhat node
+- Restart node (clean): npx hardhat restart-node
+- Compile contracts: npx hardhat compile

@@ -1,33 +1,25 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("hardhat-deploy");
-const fs = require('fs');
-const path = require('path');
+const { exec } = require('child_process');
+const util = require('util');
+const execAsync = util.promisify(exec);
 
-task("clean-deployments", "Cleans the deployments folder", async () => {
-  const deploymentsPath = path.join(__dirname, "deployments");
-  if (fs.existsSync(deploymentsPath)) {
-    fs.rmSync(deploymentsPath, { recursive: true, force: true });
-    console.log("Deployments folder cleaned");
-  }
-});
-
-task("redeploy", "Cleans and redeploys the contracts")
-  .setAction(async (taskArgs, hre) => {
-    // Run the default clean task
-    await hre.run("clean");
-
-    // Clean the deployments folder
-    await hre.run("clean-deployments");
-
-    // Deploy the contracts
-    await hre.run("deploy");
+task("restart-node", "Kills any running node on port 8545 and starts a new one")
+  .setAction(async () => {
+    try {
+      // Kill any process on port 8545
+      await execAsync("lsof -ti tcp:8545 | xargs kill -9");
+    } catch (error) {
+      // Ignore error if no process was found
+    }
+    // Start new node
+    await hre.run("node");
   });
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
-  defaultNetwork: "localhost",
   solidity: {
-    version: "0.8.28",
+    version: "0.8.19",
     settings: {
       optimizer: {
         enabled: true,
@@ -36,13 +28,6 @@ module.exports = {
     },
   },
   namedAccounts: {
-    deployer: {
-      default: 0, // By default, use the first account as the deployer
-    },
+    deployer: 0,
   },
-  networks: {
-    localhost: {
-      url: "http://127.0.0.1:8545/",
-    },
-  },
-}
+};
