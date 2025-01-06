@@ -12,16 +12,21 @@ Seamless crypto payments for your e-commerce platform. One account, any merchant
 
 ## 🏃‍♂️ Quick Start
 
+### 1. Clone and Install
 ```bash
-# Clone and install
 git clone https://github.com/your-username/one-click-crypto.git
 cd one-click-crypto
 npm install
+```
 
-# Start local node
+### 2. Start Local Node
+```bash
 npx hardhat node
+```
 
-# Deploy contracts (in a new terminal)
+### 3. Deploy Contracts
+```bash
+# In a new terminal
 npx hardhat deploy
 ```
 
@@ -29,17 +34,24 @@ That's it! Your local environment is ready for development.
 
 ## 🛠 Development
 
+### Run All Tests
 ```bash
-# Run all tests
 npx hardhat test
+```
 
-# Run specific test suite
+### Run Specific Test Suite
+```bash
 npx hardhat test test/AccountPayment.test.js
+```
 
-# Restart node (kills existing and starts fresh)
+### Restart Node
+```bash
+# Kills existing node and starts fresh
 npx hardhat restart-node
+```
 
-# Redeploy all contracts
+### Redeploy Contracts
+```bash
 npx hardhat redeploy
 ```
 
@@ -88,3 +100,17 @@ const accountAddress = await factory.createAccount(ownerAddress);
 // One tx: transfer tokens + shipping info
 await account.executePayment(tokenAddress, merchantAddress, amount);
 ```
+
+## 🤝 Contributing
+
+We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details.
+
+## 📄 License
+
+ISC
+
+## 🙋‍♂️ Support
+
+- Discord: [Join our community](discord-link)
+- Twitter: [@OneClickCrypto](twitter-link)
+- Docs: [Full documentation](docs-link)
