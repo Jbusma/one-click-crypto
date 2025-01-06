@@ -1,32 +1,43 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { deployments } = require("hardhat");
+const { deployments, getNamedAccounts } = require("hardhat");
 
 describe("ProxyFactory Integration", function () {
     let proxyFactory;
-    let implementation;
-    let owner;
+    let accountImplementation;
     let entryPoint;
 
     before(async function () {
-        // Deploy all contracts using the deployment scripts
-        await deployments.fixture(['EntryPoint', 'ProxyFactory', 'Account']);
-        [owner] = await ethers.getSigners();
-        
-        // Get the deployed contracts' addresses
-        const entryPointDeployment = await deployments.get('EntryPoint');
-        const proxyFactoryDeployment = await deployments.get('ProxyFactory');
-        const accountDeployment = await deployments.get('Account');
+        // Deploy all contracts
+        await deployments.fixture(["Account", "ProxyFactory", "EntryPoint"]);
 
-        // Connect to the existing deployed contracts
-        entryPoint = await ethers.getContractAt("EntryPoint", entryPointDeployment.address);
-        proxyFactory = await ethers.getContractAt("ProxyFactory", proxyFactoryDeployment.address);
-        implementation = await ethers.getContractAt("Account", accountDeployment.address);
+        // Get deployed contracts
+        const ProxyFactory = await ethers.getContractFactory("ProxyFactory");
+        const Account = await ethers.getContractFactory("Account");
+        const EntryPoint = await ethers.getContractFactory("EntryPoint");
+
+        proxyFactory = ProxyFactory.attach((await deployments.get("ProxyFactory")).address);
+        accountImplementation = Account.attach((await deployments.get("Account")).address);
+        entryPoint = EntryPoint.attach((await deployments.get("EntryPoint")).address);
     });
 
     it("works with deployed contracts", async function () {
-        const proxyAddress = await proxyFactory.getAddress(await implementation.getAddress(), owner.address);
-        expect(proxyAddress).to.be.properAddress;
-        console.log("Integration test - Calculated proxy address:", proxyAddress);
+        const [owner] = await ethers.getSigners();
+        
+        // Calculate deterministic address
+        const expectedAddress = await proxyFactory.getAddress(
+            await accountImplementation.getAddress(),
+            owner.address
+        );
+
+        // Deploy proxy
+        await proxyFactory.createProxy(
+            await accountImplementation.getAddress(),
+            owner.address
+        );
+
+        // Verify proxy was deployed to expected address
+        const code = await ethers.provider.getCode(expectedAddress);
+        expect(code.length).to.be.gt(2); // Has code
     });
 }); 

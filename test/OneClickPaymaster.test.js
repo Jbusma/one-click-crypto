@@ -43,8 +43,6 @@ describe("OneClickPaymaster Rate Limiting", function () {
         
         // Verify proxy code exists
         const code = await ethers.provider.getCode(proxyAddress);
-        console.log("Proxy code length:", code.length);
-        console.log("Proxy address:", proxyAddress);
         
         // Deploy Paymaster
         const Paymaster = await ethers.getContractFactory("OneClickPaymaster");
@@ -108,16 +106,10 @@ describe("OneClickPaymaster Rate Limiting", function () {
 
         // Calculate UserOp hash
         const userOpHash = await entryPoint.getUserOpHash(userOp);
-        console.log("UserOpHash:", userOpHash);
         
         // Sign the hash directly
         const signature = await user.signMessage(ethers.getBytes(userOpHash));
         userOp.signature = signature;
-        
-        // For debugging
-        const proxyAccount = await ethers.getContractAt("Account", proxyAddress);
-        console.log("Proxy owner:", await proxyAccount.owner());
-        console.log("Signer address:", user.address);
         
         return userOp;
     }
@@ -220,8 +212,13 @@ describe("OneClickPaymaster Rate Limiting", function () {
             await entryPoint.handleOps([userOp], owner.address);
             expect.fail("Should have reverted");
         } catch (error) {
-            console.log("Error:", error.message);
+            // The error data is nested inside the FailedOp error
+            // FailedOp contains: opIndex (0) and message containing the nested error
             expect(error.message).to.include("AA33 reverted");
+            
+            // We can also verify the rate limit by checking the remaining attempts
+            const remaining = await paymaster.getRemainingAttempts(proxyAddress);
+            expect(remaining).to.equal(0);
         }
     });
 }); 
