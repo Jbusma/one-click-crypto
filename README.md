@@ -88,17 +88,3 @@ const accountAddress = await factory.createAccount(ownerAddress);
 // One tx: transfer tokens + shipping info
 await account.executePayment(tokenAddress, merchantAddress, amount);
 ```
-
-## 🤝 Contributing
-
-We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for details.
-
-## 📄 License
-
-ISC
-
-## 🙋‍♂️ Support
-
-- Discord: [Join our community](discord-link)
-- Twitter: [@OneClickCrypto](twitter-link)
-- Docs: [Full documentation](docs-link)
