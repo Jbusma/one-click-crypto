@@ -45,8 +45,6 @@ describe("Account Proxy Deployment", function () {
         // Verify proxy works by attaching Account ABI
         const proxy = await ethers.getContractAt("Account", proxyAddress);
         expect(await proxy.entryPoint()).to.equal(await entryPoint.getAddress());
-        
-        console.log("Deployed proxy at:", proxyAddress);
     });
 
     it("can calculate deterministic proxy address", async function () {
@@ -66,7 +64,6 @@ describe("Account Proxy Deployment", function () {
             ethers.keccak256(proxyBytecode) // init code hash
         );
 
-        console.log("Predicted proxy address:", proxyAddress);
         expect(proxyAddress).to.be.properAddress;
     });
 }); 
