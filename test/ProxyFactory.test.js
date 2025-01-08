@@ -7,6 +7,27 @@ describe("ProxyFactory", function () {
     let owner;
     let entryPoint;
 
+    // Helper function to deploy and verify a proxy
+    async function deployProxy(ownerAddress) {
+        const tx = await proxyFactory.createProxy(
+            await implementation.getAddress(),
+            ownerAddress
+        );
+        const receipt = await tx.wait();
+        const event = receipt.logs.find(log => log.eventName === "ProxyDeployed");
+        const proxyAddress = event.args[2];
+
+        // Verify code was deployed
+        const code = await ethers.provider.getCode(proxyAddress);
+        expect(code.length).to.be.gt(2, "No code at proxy address");
+
+        return { 
+            proxyAddress, 
+            receipt,
+            gasUsed: receipt.gasUsed 
+        };
+    }
+
     beforeEach(async function () {
         [owner] = await ethers.getSigners();
         
@@ -26,21 +47,8 @@ describe("ProxyFactory", function () {
         await implementation.waitForDeployment();
     });
 
-    it("deploys proxy with correct implementation and owner", async function () {
-        // Deploy proxy
-        const tx = await proxyFactory.createProxy(
-            await implementation.getAddress(),
-            owner.address
-        );
-        const receipt = await tx.wait();
-        
-        // Get proxy address from event
-        const event = receipt.logs[0];
-        const [implementation_, owner_, proxyAddress] = event.args;
-
-        // Verify proxy was deployed with code
-        const code = await ethers.provider.getCode(proxyAddress);
-        expect(code.length).to.be.gt(2);
+    it("should deploy proxy with correct implementation and owner", async function () {
+        const { proxyAddress } = await deployProxy(owner.address);
 
         // Verify proxy is initialized correctly
         const proxy = await ethers.getContractAt("Account", proxyAddress);
@@ -48,7 +56,8 @@ describe("ProxyFactory", function () {
         expect(await proxy.entryPoint()).to.equal(await entryPoint.getAddress());
     });
 
-    it("deploys to predicted address", async function () {
+    it("should deploy to predicted address using CREATE2", async function () {
+        // Calculate predicted address
         const salt = ethers.zeroPadValue(owner.address, 32);
         const deploymentData = ethers.concat([
             "0x3d602d80600a3d3981f3363d3d373d3d3d363d73",
@@ -61,88 +70,40 @@ describe("ProxyFactory", function () {
             ethers.keccak256(deploymentData)
         );
 
-        // Deploy proxy
-        const tx = await proxyFactory.createProxy(
-            await implementation.getAddress(),
-            owner.address
-        );
-        const receipt = await tx.wait();
-        const event = receipt.logs.find(log => log.eventName === "ProxyDeployed");
-        const deployedAddress = event.args[2];
-
-        // Verify deployed address matches prediction
-        expect(deployedAddress).to.equal(predictedAddress);
-
-        // Verify code was deployed
-        const code = await ethers.provider.getCode(deployedAddress);
-        expect(code.length).to.be.gt(2);
+        // Deploy and verify
+        const { proxyAddress } = await deployProxy(owner.address);
+        expect(proxyAddress).to.equal(predictedAddress);
     });
 
-    it("deploys to same address given same parameters", async function () {
-        // Deploy first proxy
-        const tx1 = await proxyFactory.createProxy(
-            await implementation.getAddress(),
-            owner.address
-        );
-        const receipt1 = await tx1.wait();
-        const event1 = receipt1.logs.find(log => log.eventName === "ProxyDeployed");
-        const address1 = event1.args[2];
+    it("should deploy to same address given same parameters", async function () {
+        // Deploy twice with same parameters
+        const { proxyAddress: address1 } = await deployProxy(owner.address);
+        await deployProxy(owner.address);
 
-        // Try to deploy again with same parameters
-        await proxyFactory.createProxy(
-            await implementation.getAddress(),
-            owner.address
-        );
-        
-        // Get code at address1 to verify it still exists
+        // Verify first proxy still exists and has code
         const code = await ethers.provider.getCode(address1);
         expect(code.length).to.be.gt(2);
     });
 
-    it("doesn't redeploy if proxy exists", async function () {
-        // Deploy first time
-        const tx1 = await proxyFactory.createProxy(
-            await implementation.getAddress(),
-            owner.address
-        );
-        const receipt1 = await tx1.wait();
+    it("should optimize gas when proxy already exists", async function () {
+        // First deployment
+        const { gasUsed: gas1 } = await deployProxy(owner.address);
 
-        // Deploy second time with same parameters
-        const tx2 = await proxyFactory.createProxy(
-            await implementation.getAddress(),
-            owner.address
-        );
-        const receipt2 = await tx2.wait();
-
-        // Second deployment should use less gas since proxy exists
-        expect(receipt2.gasUsed).to.be.lt(110000);
+        // Second deployment should use less gas
+        const { gasUsed: gas2 } = await deployProxy(owner.address);
+        expect(gas2).to.be.lt(110000);
+        expect(gas2).to.be.lt(gas1);
     });
 
-    it("deploys to different addresses for different owners", async function () {
+    it("should deploy to different addresses for different owners", async function () {
         const [_, addr1, addr2] = await ethers.getSigners();
 
-        // Deploy for first owner
-        const tx1 = await proxyFactory.createProxy(
-            await implementation.getAddress(),
-            addr1.address
-        );
-        const receipt1 = await tx1.wait();
-        const event1 = receipt1.logs.find(log => log.eventName === "ProxyDeployed");
-        const address1 = event1.args[2];
+        // Deploy for two different owners
+        const { proxyAddress: address1 } = await deployProxy(addr1.address);
+        const { proxyAddress: address2 } = await deployProxy(addr2.address);
 
-        // Deploy for second owner
-        const tx2 = await proxyFactory.createProxy(
-            await implementation.getAddress(),
-            addr2.address
-        );
-        const receipt2 = await tx2.wait();
-        const event2 = receipt2.logs.find(log => log.eventName === "ProxyDeployed");
-        const address2 = event2.args[2];
-
-        // Addresses should be different
+        // Verify addresses are different but both have code
         expect(address1).to.not.equal(address2);
-
-        // Both should have code
         const code1 = await ethers.provider.getCode(address1);
         const code2 = await ethers.provider.getCode(address2);
         expect(code1.length).to.be.gt(2);

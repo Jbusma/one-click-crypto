@@ -1,5 +1,15 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { createSignedUserOp, createApprovalOp } = require("./helpers/userOpHelper");
+
+// Constants
+const BLOCKS_PER_PERIOD = 7200;
+const INITIAL_SUPPLY = ethers.parseEther("1000000");     // 1M tokens
+const ACCOUNT_FUNDING = ethers.parseEther("1000");       // 1000 tokens for testing
+const PAYMENT_AMOUNT = ethers.parseEther("1");           // 1 token per payment
+const APPROVAL_AMOUNT = ACCOUNT_FUNDING;                 // Approve full balance
+const STAKE_AMOUNT = ethers.parseEther("1");            // 1 ETH stake
+const DEPOSIT_AMOUNT = ethers.parseEther("1");          // 1 ETH deposit
 
 describe("OneClickPaymaster Rate Limiting", function () {
     let paymaster;
@@ -7,8 +17,25 @@ describe("OneClickPaymaster Rate Limiting", function () {
     let owner;
     let user;
     let token;
-    const BLOCKS_PER_PERIOD = 7200;
     let proxyAddress;
+
+    async function mineBlocks(numBlocks) {
+        for (let i = 0; i < numBlocks; i++) {
+            await ethers.provider.send("evm_mine");
+        }
+    }
+
+    async function createTransferOp(nonce) {
+        return createSignedUserOp({
+            sender: proxyAddress,
+            signer: user,
+            entryPoint,
+            callData: "0x",
+            tokenAddress: await token.getAddress(),
+            paymasterAddress: await paymaster.getAddress(),
+            nonce
+        });
+    }
 
     beforeEach(async function () {
         [owner, user] = await ethers.getSigners();
@@ -19,7 +46,7 @@ describe("OneClickPaymaster Rate Limiting", function () {
         
         // Deploy test token
         const Token = await ethers.getContractFactory("contracts/OneClickToken.sol:OneClickCheckoutToken");
-        token = await Token.deploy("1000000000000000000000000"); // 1M tokens
+        token = await Token.deploy(INITIAL_SUPPLY);
         
         // Deploy Account implementation
         const Account = await ethers.getContractFactory("Account");
@@ -41,9 +68,6 @@ describe("OneClickPaymaster Rate Limiting", function () {
         const [impl, , proxyAddr] = event.args;
         proxyAddress = proxyAddr;
         
-        // Verify proxy code exists
-        const code = await ethers.provider.getCode(proxyAddress);
-        
         // Deploy Paymaster
         const Paymaster = await ethers.getContractFactory("OneClickPaymaster");
         paymaster = await Paymaster.deploy(await entryPoint.getAddress());
@@ -52,11 +76,11 @@ describe("OneClickPaymaster Rate Limiting", function () {
         await paymaster.addSupportedToken(await token.getAddress(), 1);
         
         // Fund proxy with tokens
-        await token.transfer(proxyAddress, "1000000000000000000000"); // 1000 tokens
+        await token.transfer(proxyAddress, ACCOUNT_FUNDING);
 
         // Add stake to paymaster
-        await paymaster.addStake(1, { value: ethers.parseEther("1") });
-        await paymaster.deposit({ value: ethers.parseEther("1") });
+        await paymaster.addStake(1, { value: STAKE_AMOUNT });
+        await paymaster.deposit({ value: DEPOSIT_AMOUNT });
         
         // Unlock stake
         await paymaster.unlockStake();
@@ -64,161 +88,74 @@ describe("OneClickPaymaster Rate Limiting", function () {
         await mineBlocks(1);
     });
 
-    async function createUserOp(nonce, override = null) {
-        const tokenAddress = await token.getAddress();
-        const paymasterAddress = await paymaster.getAddress();
-
-        const iface = new ethers.Interface([
-            "function execute(address dest, uint256 value, bytes calldata data)"
-        ]);
-
-        const tokenIface = new ethers.Interface([
-            "function transfer(address to, uint256 amount)"
-        ]);
-
-        const callData = override ? 
-            iface.encodeFunctionData("execute", [override.dest, override.value, override.data]) :
-            iface.encodeFunctionData("execute", [
-                tokenAddress,
-                0,
-                tokenIface.encodeFunctionData("transfer", [owner.address, "1000000000000000000"])
-            ]);
-
-        const userOp = {
-            sender: proxyAddress,
-            nonce,
-            initCode: "0x",
-            callData,
-            callGasLimit: 500000,
-            verificationGasLimit: 500000,
-            preVerificationGas: 50000,
-            maxFeePerGas: ethers.parseUnits("10", "gwei"),
-            maxPriorityFeePerGas: ethers.parseUnits("5", "gwei"),
-            paymasterAndData: ethers.concat([
-                paymasterAddress,
-                ethers.AbiCoder.defaultAbiCoder().encode(
-                    ["address", "uint256"],
-                    [tokenAddress, "1000000000000000000"]
-                )
-            ]),
-            signature: "0x"
-        };
-
-        // Calculate UserOp hash
-        const userOpHash = await entryPoint.getUserOpHash(userOp);
-        
-        // Sign the hash directly
-        const signature = await user.signMessage(ethers.getBytes(userOpHash));
-        userOp.signature = signature;
-        
-        return userOp;
-    }
-
-    async function mineBlocks(numBlocks) {
-        for (let i = 0; i < numBlocks; i++) {
-            await ethers.provider.send("evm_mine");
-        }
-    }
-
-    it("allows 3 attempts within a period", async function () {
-        // Approve tokens first - note we need to approve through the proxy
-        const tokenIface = new ethers.Interface([
-            "function approve(address spender, uint256 amount)"
-        ]);
-        const approveOp = await createUserOp(0, {
-            dest: await token.getAddress(),
-            value: 0,
-            data: tokenIface.encodeFunctionData("approve", [await paymaster.getAddress(), "1000000000000000000000"])
+    describe("Rate limiting behavior", function () {
+        beforeEach(async function () {
+            // Approve tokens first
+            const approveOp = await createApprovalOp({
+                sender: proxyAddress,
+                signer: user,
+                entryPoint,
+                tokenAddress: await token.getAddress(),
+                spender: await paymaster.getAddress(),
+                amount: APPROVAL_AMOUNT,
+                paymasterAddress: await paymaster.getAddress()
+            });
+            await entryPoint.handleOps([approveOp], owner.address);
         });
-        await entryPoint.handleOps([approveOp], owner.address);
 
-        // Try 3 operations
-        for(let i = 1; i < 4; i++) {
-            const userOp = await createUserOp(i);
-            await entryPoint.handleOps([userOp], owner.address);
-        }
-    });
-
-    it("resets attempts after period expires", async function () {
-        // Approve tokens first - note we need to approve through the proxy
-        const tokenIface = new ethers.Interface([
-            "function approve(address spender, uint256 amount)"
-        ]);
-        const approveOp = await createUserOp(0, {
-            dest: await token.getAddress(),
-            value: 0,
-            data: tokenIface.encodeFunctionData("approve", [await paymaster.getAddress(), "1000000000000000000000"])
+        it("should allow exactly 3 operations within a single period", async function () {
+            // Try 3 operations - all should succeed
+            for(let i = 1; i < 4; i++) {
+                const userOp = await createTransferOp(i);
+                await entryPoint.handleOps([userOp], owner.address);
+            }
         });
-        await entryPoint.handleOps([approveOp], owner.address);
 
-        // Use up all attempts
-        for (let i = 1; i < 4; i++) {
-            await entryPoint.handleOps([await createUserOp(i)], owner.address);
-        }
+        it("should reset attempt counter after period expiration", async function () {
+            // Use up all attempts
+            for (let i = 1; i < 4; i++) {
+                await entryPoint.handleOps([await createTransferOp(i)], owner.address);
+            }
 
-        // Mine blocks to pass the period
-        await mineBlocks(BLOCKS_PER_PERIOD);
+            // Mine blocks to pass the period
+            await mineBlocks(BLOCKS_PER_PERIOD);
 
-        // Should be able to attempt again
-        await entryPoint.handleOps([await createUserOp(4)], owner.address);
-    });
-
-    it("correctly reports remaining attempts", async function () {
-        // Approve tokens first - note we need to approve through the proxy
-        const tokenIface = new ethers.Interface([
-            "function approve(address spender, uint256 amount)"
-        ]);
-        const approveOp = await createUserOp(0, {
-            dest: await token.getAddress(),
-            value: 0,
-            data: tokenIface.encodeFunctionData("approve", [await paymaster.getAddress(), "1000000000000000000000"])
+            // Should be able to attempt again
+            await entryPoint.handleOps([await createTransferOp(4)], owner.address);
         });
-        await entryPoint.handleOps([approveOp], owner.address);
 
-        expect(await paymaster.getRemainingAttempts(proxyAddress)).to.equal(3);
+        it("should accurately track and report remaining attempts", async function () {
+            expect(await paymaster.getRemainingAttempts(proxyAddress)).to.equal(3);
 
-        // Use one attempt
-        await entryPoint.handleOps([await createUserOp(1)], owner.address);
+            // Use one attempt
+            await entryPoint.handleOps([await createTransferOp(1)], owner.address);
+            expect(await paymaster.getRemainingAttempts(proxyAddress)).to.equal(2);
 
-        expect(await paymaster.getRemainingAttempts(proxyAddress)).to.equal(2);
-
-        // Mine blocks to pass the period
-        await mineBlocks(BLOCKS_PER_PERIOD);
-
-        expect(await paymaster.getRemainingAttempts(proxyAddress)).to.equal(3);
-    });
-
-    it("denies 4th attempt within period", async function () {
-        // Approve tokens first
-        const tokenIface = new ethers.Interface([
-            "function approve(address spender, uint256 amount)"
-        ]);
-        const approveOp = await createUserOp(0, {
-            dest: await token.getAddress(),
-            value: 0,
-            data: tokenIface.encodeFunctionData("approve", [await paymaster.getAddress(), "1000000000000000000000"])
+            // Mine blocks to pass the period
+            await mineBlocks(BLOCKS_PER_PERIOD);
+            expect(await paymaster.getRemainingAttempts(proxyAddress)).to.equal(3);
         });
-        await entryPoint.handleOps([approveOp], owner.address);
 
-        // Use up all 3 attempts
-        for(let i = 1; i < 4; i++) {
-            const userOp = await createUserOp(i);
-            await entryPoint.handleOps([userOp], owner.address);
-        }
+        it("should reject the 4th operation within a single period", async function () {
+            // Use up all 3 attempts
+            for(let i = 1; i < 4; i++) {
+                const userOp = await createTransferOp(i);
+                await entryPoint.handleOps([userOp], owner.address);
+            }
 
-        // Try 4th attempt - should revert
-        const userOp = await createUserOp(4);
-        try {
-            await entryPoint.handleOps([userOp], owner.address);
-            expect.fail("Should have reverted");
-        } catch (error) {
-            // The error data is nested inside the FailedOp error
-            // FailedOp contains: opIndex (0) and message containing the nested error
-            expect(error.message).to.include("AA33 reverted");
-            
-            // We can also verify the rate limit by checking the remaining attempts
-            const remaining = await paymaster.getRemainingAttempts(proxyAddress);
-            expect(remaining).to.equal(0);
-        }
+            // Try 4th attempt - should revert
+            const userOp = await createTransferOp(4);
+            try {
+                await entryPoint.handleOps([userOp], owner.address);
+                expect.fail("Should have reverted");
+            } catch (error) {
+                // The error data is nested inside the FailedOp error
+                expect(error.message).to.include("AA33 reverted");
+                
+                // Verify rate limit through remaining attempts
+                const remaining = await paymaster.getRemainingAttempts(proxyAddress);
+                expect(remaining).to.equal(0);
+            }
+        });
     });
 }); 
